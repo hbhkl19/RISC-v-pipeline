@@ -13,3 +13,6 @@ load-use、停顿
     输出：PC，IF/ID寄存器的写入
           为ID/EX控制信号添加多选器
     新添加：一个控制信号多选器，一个冒险检测单元
+    修改：NPC根据stall去改
+            IF/ID根据stall修改：保持不变
+            ID.EX根据stall修改：清0
