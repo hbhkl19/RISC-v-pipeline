@@ -16,3 +16,5 @@ load-use、停顿
     修改：NPC根据stall去改
             IF/ID根据stall修改：保持不变
             ID.EX根据stall修改：清0
+
+attention！：由于分支是在ID阶段判断是否跳转并计算跳转地址，即在ID阶段就会有数据依赖，所以要特别注意这种情况（目前考虑多加stall）
