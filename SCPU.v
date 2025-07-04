@@ -40,6 +40,7 @@ module SCPU(
     wire[31:0] aluout;
     wire [2:0] DMType_ctrl;
     wire MemWrite_ctrl;
+    wire MemRead_crtl;
 	// Pipeline registers
     //IF/ID
     reg [31:0] IF_ID_inst, IF_ID_PC;
@@ -52,6 +53,7 @@ module SCPU(
     reg [4:0] ID_EX_ALUOp;
     reg [31:0] ID_EX_inst;
     reg [2:0] ID_EX_DMType;
+    reg ID_EX_MemRead;
     //EX/MEM
     reg [31:0] EX_MEM_alu_out, EX_MEM_B,EX_MEM_PC;
     reg [4:0] EX_MEM_rd;
@@ -59,15 +61,13 @@ module SCPU(
     reg EX_MEM_RegWrite, EX_MEM_MemWrite;
     reg [1:0] EX_MEM_WDSel;
     reg [2:0] EX_MEM_DMType;
+    reg  EX_MEM_MemRead;
     //MEM/WB
     reg [31:0] MEM_WB_alu_out, MEM_WB_dmem_out,MEM_WB_PC;
     reg [4:0] MEM_WB_rd;
     reg MEM_WB_RegWrite;
     reg [1:0] MEM_WB_WDSel;
-    reg [31:0] MEM_WB_inst;//test
-    // Hazard detection
-    //wire Stall;
-    //wire [1:0] ForwardA, ForwardB;
+    reg [31:0] MEM_WB_inst;
 	
 	assign iimm_shamt=IF_ID_inst[24:20];
 	assign iimm=IF_ID_inst[31:20];
@@ -107,6 +107,12 @@ module SCPU(
     assign Flush = (NPCOp == `NPC_JALR) || 
                    (NPCOp == `NPC_JUMP) || 
                    (NPCOp == `NPC_BRANCH && BranchTaken);
+    wire is_Branch;
+    assign is_Branch = (NPCOp == `NPC_JALR) || 
+                   (NPCOp == `NPC_JUMP) || 
+                   (NPCOp == `NPC_BRANCH);
+    
+    
     //NPC
     NPC U_NPC(
         .PC(PC_out),
@@ -120,7 +126,7 @@ module SCPU(
     );
     // instantiation of control unit
 	ctrl U_ctrl(
-		.Op(Op), .Funct7(Funct7), .Funct3(Funct3), 
+		.Op(Op), .Funct7(Funct7), .Funct3(Funct3), .MemRead(MemRead_crtl),
 		.RegWrite(RegWrite), .MemWrite(MemWrite_ctrl),
 		.EXTOp(EXTOp), .ALUOp(ALUOp), .NPCOp(NPCOp), 
 		.ALUSrc(ALUSrc), .GPRSel(GPRSel), .WDSel(WDSel), .DMType(DMType_ctrl)
@@ -151,9 +157,55 @@ module SCPU(
 	endcase
   end
   
-    assign alu_A = ID_EX_A;
+  reg [31:0] alu_in1;  
+    reg [31:0] alu_in2;
+    always@(*) begin
+        case(ForwardA)
+        `Forward_None: alu_in1 = ID_EX_A;
+        `Forward_EX: alu_in1 = EX_MEM_alu_out;
+        `Forward_MEM: alu_in1 = WD;
+        endcase
+        case(ForwardB)
+        `Forward_None: alu_in2 = ID_EX_B;
+        `Forward_EX: alu_in2 = EX_MEM_alu_out;
+        `Forward_MEM: alu_in2 = WD;
+        endcase
+    end
+
+    
+    assign alu_A = alu_in1;
                    
-    assign alu_B = (ID_EX_ALUSrc) ? ID_EX_imm : ID_EX_B;
+    assign alu_B = (ID_EX_ALUSrc) ? ID_EX_imm : alu_in2;
+
+    wire [1:0] ForwardA, ForwardB;
+
+    Forwarding U_Forwarding(
+        .EX_MEM_RegWrite(EX_MEM_RegWrite),
+        .MEM_WB_RegWrite(MEM_WB_RegWrite),
+        .EX_MEM_rd(EX_MEM_rd),
+        .MEM_WB_rd(MEM_WB_rd),
+        .ID_EX_rs1(ID_EX_rs1),
+        .ID_EX_rs2(ID_EX_rs2),
+        .ForwardA(ForwardA),
+        .ForwardB(ForwardB)
+    );
+
+    reg stall;
+    // Hazard detection unit
+    Hazard_Detect U_Hazard_Detect(
+        .IF_ID_is_Branch(is_Branch),
+        .IF_ID_rs1(rs1),
+        .IF_ID_rs2(rs2),
+        .ID_EX_rd(ID_EX_rd),
+        .ID_EX_MemRead(ID_EX_MemRead), // load-use hazard
+        .ID_EX_RegWrite(ID_EX_RegWrite),
+        .EX_MEM_RegWrite(EX_MEM_RegWrite),
+        .EX_MEM_MemRead(EX_MEM_MemRead), // load-use hazard
+        .EX_MEM_rd(EX_MEM_rd),
+        .stall(stall)
+    );
+
+
     
     // Outputs
     assign Addr_out = EX_MEM_alu_out;
@@ -177,7 +229,7 @@ module SCPU(
             IF_ID_inst <= 0;IF_ID_PC <= 0;
             ID_EX_PC <= 0; ID_EX_A <= 0; ID_EX_B <= 0; ID_EX_imm <= 0;
             ID_EX_rd <= 0; ID_EX_rs1 <= 0; ID_EX_rs2 <= 0;ID_EX_inst <= 0;
-            ID_EX_RegWrite <= 0; ID_EX_MemWrite <= 0; ID_EX_ALUSrc <= 0;
+            ID_EX_RegWrite <= 0; ID_EX_MemWrite <= 0;  ID_EX_MemRead<=0 ;ID_EX_ALUSrc <= 0;
             ID_EX_WDSel <= 0; ID_EX_GPRSel <= 0; ID_EX_ALUOp <= 0;ID_EX_DMType <= 0;
             EX_MEM_alu_out <= 0; EX_MEM_B <= 0; EX_MEM_rd <= 0;EX_MEM_PC<=0;
             EX_MEM_RegWrite <= 0; EX_MEM_MemWrite <= 0; EX_MEM_WDSel <= 0;
@@ -186,11 +238,24 @@ module SCPU(
             MEM_WB_RegWrite <= 0; MEM_WB_WDSel <= 0;MEM_WB_PC<=0;MEM_WB_inst<=0;
         end
         else begin
+
             // IF/ID Pipeline Register
+            if (stall) begin
+                IF_ID_PC <= IF_ID_PC; // Keep the current PC
+                IF_ID_inst <= IF_ID_inst; // Keep the current instruction
+            end
+            else begin
             IF_ID_PC <= PC_out;
             IF_ID_inst <= inst_in;
             IF_ID_valid <= 1;
+            end
             // ID/EX Pipeline Register
+            if(stall)begin 
+                ID_EX_RegWrite<=0;
+                ID_EX_MemWrite<=0;
+                ID_EX_MemRead<=0; // Reset control signals during stall
+            end
+            else begin
             ID_EX_PC <= IF_ID_PC;
             ID_EX_inst <= IF_ID_inst;
             ID_EX_A <= RD1;
@@ -201,11 +266,13 @@ module SCPU(
             ID_EX_rs2 <= rs2;
             ID_EX_RegWrite <= RegWrite;
             ID_EX_MemWrite <= MemWrite_ctrl;
+            ID_EX_MemRead <= MemRead_crtl; // Add MemRead control signal
             ID_EX_ALUSrc <= ALUSrc;
             ID_EX_WDSel <= WDSel;
             ID_EX_GPRSel <= GPRSel;
             ID_EX_ALUOp <= ALUOp;
             ID_EX_DMType <= DMType_ctrl;
+            end
             // EX/MEM Pipeline Register         
             EX_MEM_PC <= ID_EX_PC;
             EX_MEM_inst <= ID_EX_inst;
@@ -214,6 +281,7 @@ module SCPU(
             EX_MEM_rd <= ID_EX_rd;
             EX_MEM_RegWrite <= ID_EX_RegWrite;
             EX_MEM_MemWrite <= ID_EX_MemWrite;
+            EX_MEM_MemRead <= ID_EX_MemRead; // Add MemRead control signal
             EX_MEM_WDSel <= ID_EX_WDSel;
             EX_MEM_DMType <= ID_EX_DMType;
             // MEM/WB Pipeline Register

@@ -3,7 +3,7 @@
 module ctrl(Op, Funct7, Funct3, 
             RegWrite, MemWrite,
             EXTOp, ALUOp, NPCOp, 
-            ALUSrc, GPRSel, WDSel,DMType
+            ALUSrc, GPRSel, WDSel,DMType,MemRead
             );
             
    input  [6:0] Op;       // opcode
@@ -16,6 +16,7 @@ module ctrl(Op, Funct7, Funct3,
    output [2:0] NPCOp;    // next pc operation
    output       ALUSrc;   // ALU source for A
    output [2:0] DMType;
+   output       MemRead;
    output [1:0] GPRSel;   // general purpose register selection
    output [1:0] WDSel;    // (register) write data selection
    
@@ -72,6 +73,10 @@ module ctrl(Op, Funct7, Funct3,
     assign RegWrite = rtype | itype | utype | auipc | jal | jalr | load;
     assign MemWrite = stype;
     assign ALUSrc   = itype | stype | utype | auipc | jal | jalr | load;
+    
+    
+    assign MemRead  = load; // load instructions read from memory
+    
     // signed extension
   // EXT_CTRL_ITYPE_SHAMT 6'b100000
   // EXT_CTRL_ITYPE	      6'b010000

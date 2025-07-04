@@ -18,3 +18,7 @@ load-use、停顿
             ID.EX根据stall修改：清0
 
 attention！：由于分支是在ID阶段判断是否跳转并计算跳转地址，即在ID阶段就会有数据依赖，所以要特别注意这种情况（目前考虑多加stall）
+
+scpu.v:实例化新建的两个模块，注意明确参数传什么
+       添加alu多选器，根据forward信号选输入
+       根据stall信号对IF_ID,ID_EX信号实现停顿，清0操作
