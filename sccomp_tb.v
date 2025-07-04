@@ -13,9 +13,9 @@ module sccomp_tb();
    integer counter = 0;
    
    initial begin
-      $readmemh("forward_sim1.dat", U_SCCOMP.U_IM.ROM, 0, 14); // load instructions into instruction memory
-      foutput = $fopen("results1.txt");
-      $dumpfile("sim1.vcd");
+      $readmemh("forward_sim2.dat", U_SCCOMP.U_IM.ROM, 0, 23); // load instructions into instruction memory
+      foutput = $fopen("results2.txt");
+      $dumpfile("sim2.vcd");
       $dumpvars(0, sccomp_tb);
       clk = 1;
       rstn = 1;

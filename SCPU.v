@@ -56,6 +56,9 @@ module SCPU(
     reg ID_EX_MemRead;
     //EX/MEM
     reg [31:0] EX_MEM_alu_out, EX_MEM_B,EX_MEM_PC;
+
+    reg [4:0] EX_MEM_rs2;
+
     reg [4:0] EX_MEM_rd;
     reg [31:0] EX_MEM_inst;//test
     reg EX_MEM_RegWrite, EX_MEM_MemWrite;
@@ -87,30 +90,55 @@ module SCPU(
     assign IMM = IF_ID_inst[31:12];  // 20-bit immediate
     
     // instantiation of pc unit
-	PC U_PC(.clk(clk), .rst(reset), .NPC(NPC), .PC(PC_out) );
+	PC U_PC(.clk(clk), .rst(reset), .NPC(NPC), .PC(PC_out), .stall(stall)); // PC module
 	 
      
     // NPC
-    wire [31:0] JALR_Addr, Branch_Addr, JAL_Addr;    
+    wire [31:0] JALR_Addr, Branch_Addr, JAL_Addr;
     wire Flush;
-    assign JALR_Addr = (RD1 + immout) & ~32'd1;
+    assign JALR_Addr = (branch_operand_A + immout) & ~32'd1;
     assign Branch_Addr = IF_ID_PC + immout;
     assign JAL_Addr = IF_ID_PC + immout;
     //
+
+
+    reg [31:0] branch_operand_A;
+reg [31:0] branch_operand_B;
+
+// 为操作数A (rs1) 创建Mux
+always @(*) begin
+    case (ForwardID_A)
+        `Fwd_EX:   branch_operand_A = EX_MEM_alu_out; // 从MEM阶段前递
+        `Fwd_WB:   branch_operand_A = WD;            // 从WB阶段前递
+        default:   branch_operand_A = RD1;           // 默认从RF读取
+    endcase
+end
+
+// 为操作数B (rs2) 创建Mux
+always @(*) begin
+    case (ForwardID_B)
+        `Fwd_EX:   branch_operand_B = EX_MEM_alu_out;
+        `Fwd_WB:   branch_operand_B = WD;
+        default:   branch_operand_B = RD2;
+    endcase
+end
+
     BranchUnit U_BranchUnit(
         .Funct3(Funct3),
-        .rs1_val(RD1),
-        .rs2_val(RD2),
+        .rs1_val(branch_operand_A),
+        .rs2_val(branch_operand_B),
         .BranchTaken(BranchTaken)
     );
      // Flush
-    assign Flush = (NPCOp == `NPC_JALR) || 
-                   (NPCOp == `NPC_JUMP) || 
-                   (NPCOp == `NPC_BRANCH && BranchTaken);
+    assign Flush = (Op == 7'b1100111) ||   // JALR
+                   (Op == 7'b1101111) ||   // JAL
+                   (Op == 7'b1100011 && BranchTaken);  // Branch taken
+
+    
     wire is_Branch;
-    assign is_Branch = (NPCOp == `NPC_JALR) || 
-                   (NPCOp == `NPC_JUMP) || 
-                   (NPCOp == `NPC_BRANCH);
+    assign is_Branch = (Op == 7'b1101111) ||  // JAL 
+                   (Op == 7'b1100111) ||   // JALR
+                   (Op == 7'b1100011);   // Branch
     
     
     //NPC
@@ -178,8 +206,10 @@ module SCPU(
     assign alu_B = (ID_EX_ALUSrc) ? ID_EX_imm : alu_in2;
 
     wire [1:0] ForwardA, ForwardB;
+    wire [1:0] ForwardID_A, ForwardID_B; // For Branch comparison
 
     Forwarding U_Forwarding(
+        .IF_ID_is_Branch(is_Branch),
         .EX_MEM_RegWrite(EX_MEM_RegWrite),
         .MEM_WB_RegWrite(MEM_WB_RegWrite),
         .EX_MEM_rd(EX_MEM_rd),
@@ -187,7 +217,11 @@ module SCPU(
         .ID_EX_rs1(ID_EX_rs1),
         .ID_EX_rs2(ID_EX_rs2),
         .ForwardA(ForwardA),
-        .ForwardB(ForwardB)
+        .ForwardB(ForwardB),
+        .IF_ID_rs1(rs1),      // ID阶段的rs1地址
+        .IF_ID_rs2(rs2),      // ID阶段的rs2地址
+        .ForwardID_A(ForwardID_A), // 控制送往分支比较器的操作数A
+        .ForwardID_B(ForwardID_B)  // 控制送往分支比较器的操作数B
     );
 
     wire stall;
@@ -206,10 +240,27 @@ module SCPU(
     );
 
 
+
+
+
+wire forward_WB_to_MEM; // Mux的选择信号
+
+assign forward_WB_to_MEM = (EX_MEM_MemWrite) && 
+                           (MEM_WB_RegWrite) && 
+                           (MEM_WB_rd != 0) && 
+                           (MEM_WB_rd == EX_MEM_rs2);
+
+
+wire [31:0] final_data_to_memory; // Mux的输出
+
+assign final_data_to_memory = forward_WB_to_MEM ? MEM_WB_alu_out : EX_MEM_B;
+
+
+
     
     // Outputs
     assign Addr_out = EX_MEM_alu_out;
-    assign Data_out = EX_MEM_B;
+    assign Data_out = final_data_to_memory;
     assign MemWrite = EX_MEM_MemWrite;
     assign DMType = EX_MEM_DMType;
     
@@ -223,6 +274,13 @@ module SCPU(
             IF_ID_PC <= 0;
         end
     end
+
+    wire final_ID_EX_RegWrite, final_ID_EX_MemWrite, final_ID_EX_MemRead;
+    assign final_ID_EX_RegWrite = stall ? 1'b0 : RegWrite;
+    assign final_ID_EX_MemWrite = stall ? 1'b0 : MemWrite_ctrl;
+    assign final_ID_EX_MemRead  = stall ? 1'b0 : MemRead_crtl;
+
+
     always @(posedge clk or posedge reset) begin
         if (reset) begin
             // Reset pipeline registers
@@ -230,32 +288,23 @@ module SCPU(
             ID_EX_PC <= 0; ID_EX_A <= 0; ID_EX_B <= 0; ID_EX_imm <= 0;
             ID_EX_rd <= 0; ID_EX_rs1 <= 0; ID_EX_rs2 <= 0;ID_EX_inst <= 0;
             ID_EX_RegWrite <= 0; ID_EX_MemWrite <= 0;  ID_EX_MemRead<=0 ;ID_EX_ALUSrc <= 0;
-            ID_EX_WDSel <= 0; ID_EX_GPRSel <= 0; ID_EX_ALUOp <= 0;ID_EX_DMType <= 0;
+            ID_EX_WDSel <= 0; ID_EX_GPRSel <= 0; ID_EX_ALUOp <= 0;ID_EX_DMType <= 0;EX_MEM_rs2 <= 0;
             EX_MEM_alu_out <= 0; EX_MEM_B <= 0; EX_MEM_rd <= 0;EX_MEM_PC<=0;
             EX_MEM_RegWrite <= 0; EX_MEM_MemWrite <= 0; EX_MEM_WDSel <= 0;
             EX_MEM_inst<=0;EX_MEM_DMType <= 0;EX_MEM_MemRead <= 0;
             MEM_WB_alu_out <= 0; MEM_WB_dmem_out <= 0; MEM_WB_rd <= 0;
-            MEM_WB_RegWrite <= 0; MEM_WB_WDSel <= 0;MEM_WB_PC<=0;MEM_WB_inst<=0;
+            MEM_WB_RegWrite <= 0; MEM_WB_WDSel <= 0;MEM_WB_PC<=0;MEM_WB_inst<=0; 
         end
         else begin
 
             // IF/ID Pipeline Register
-            if (stall) begin
-                IF_ID_PC <= IF_ID_PC; // Keep the current PC
-                IF_ID_inst <= IF_ID_inst; // Keep the current instruction
-            end
-            else begin
+            if(!stall) begin
             IF_ID_PC <= PC_out;
             IF_ID_inst <= inst_in;
             IF_ID_valid <= 1;
             end
             // ID/EX Pipeline Register
-            if(stall)begin 
-                ID_EX_RegWrite<=0;
-                ID_EX_MemWrite<=0;
-                ID_EX_MemRead<=0; // Reset control signals during stall
-            end
-            else begin
+            
             ID_EX_PC <= IF_ID_PC;
             ID_EX_inst <= IF_ID_inst;
             ID_EX_A <= RD1;
@@ -264,20 +313,21 @@ module SCPU(
             ID_EX_rd <= rd;
             ID_EX_rs1 <= rs1;
             ID_EX_rs2 <= rs2;
-            ID_EX_RegWrite <= RegWrite;
-            ID_EX_MemWrite <= MemWrite_ctrl;
-            ID_EX_MemRead <= MemRead_crtl; // Add MemRead control signal
+            ID_EX_RegWrite <= final_ID_EX_RegWrite;
+            ID_EX_MemWrite <= final_ID_EX_MemWrite;
+            ID_EX_MemRead <= final_ID_EX_MemRead; // Add MemRead control signal
             ID_EX_ALUSrc <= ALUSrc;
             ID_EX_WDSel <= WDSel;
             ID_EX_GPRSel <= GPRSel;
             ID_EX_ALUOp <= ALUOp;
             ID_EX_DMType <= DMType_ctrl;
-            end
-            // EX/MEM Pipeline Register         
+            
+            // EX/MEM Pipeline Register  
+            EX_MEM_rs2 <= ID_EX_rs2; // Store rs2 for forwarding       
             EX_MEM_PC <= ID_EX_PC;
             EX_MEM_inst <= ID_EX_inst;
             EX_MEM_alu_out <= aluout;
-            EX_MEM_B <= ID_EX_B;
+            EX_MEM_B <= alu_in2; // alu_B
             EX_MEM_rd <= ID_EX_rd;
             EX_MEM_RegWrite <= ID_EX_RegWrite;
             EX_MEM_MemWrite <= ID_EX_MemWrite;

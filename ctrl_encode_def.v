@@ -69,5 +69,10 @@
 `define Forward_EX   2'b01
 `define Forward_MEM  2'b10
 
+//IF/ID的前递
+`define Fwd_None 2'b00
+`define Fwd_EX   2'b01  // 从 EX/MEM 阶段前递
+`define Fwd_WB   2'b10  // 从 MEM/WB 阶段前递
+
 //`define NOP 32'h00000013
 //`define Stype 7'b0100011
