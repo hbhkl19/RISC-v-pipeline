@@ -8,7 +8,7 @@ module NPC(PC, NPCOp, BranchTaken,JALR_Addr,Branch_Addr,JAL_Addr,IF_ID_PC,NPC,st
    input  [31:0] JALR_Addr;
    input  [31:0] Branch_Addr;
    input  [31:0] JAL_Addr;
-   inout stall,
+   input stall;
    output reg [31:0] NPC;   // next pc
    
    wire [31:0] PCPLUS4;

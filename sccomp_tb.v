@@ -13,10 +13,10 @@ module sccomp_tb();
    integer counter = 0;
    
    initial begin
-      $readmemh("riscv32_sim1.dat", U_SCCOMP.U_IM.ROM, 0, 30); // load instructions into instruction memory
+      $readmemh("forward_sim1.dat", U_SCCOMP.U_IM.ROM, 0, 14); // load instructions into instruction memory
       foutput = $fopen("results1.txt");
       $dumpfile("sim1.vcd");
-      $dumpvars(1, sccomp_tb);
+      $dumpvars(0, sccomp_tb);
       clk = 1;
       rstn = 1;
       #5 ;

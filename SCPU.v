@@ -190,7 +190,7 @@ module SCPU(
         .ForwardB(ForwardB)
     );
 
-    reg stall;
+    wire stall;
     // Hazard detection unit
     Hazard_Detect U_Hazard_Detect(
         .IF_ID_is_Branch(is_Branch),
@@ -233,7 +233,7 @@ module SCPU(
             ID_EX_WDSel <= 0; ID_EX_GPRSel <= 0; ID_EX_ALUOp <= 0;ID_EX_DMType <= 0;
             EX_MEM_alu_out <= 0; EX_MEM_B <= 0; EX_MEM_rd <= 0;EX_MEM_PC<=0;
             EX_MEM_RegWrite <= 0; EX_MEM_MemWrite <= 0; EX_MEM_WDSel <= 0;
-            EX_MEM_inst<=0;EX_MEM_DMType <= 0;
+            EX_MEM_inst<=0;EX_MEM_DMType <= 0;EX_MEM_MemRead <= 0;
             MEM_WB_alu_out <= 0; MEM_WB_dmem_out <= 0; MEM_WB_rd <= 0;
             MEM_WB_RegWrite <= 0; MEM_WB_WDSel <= 0;MEM_WB_PC<=0;MEM_WB_inst<=0;
         end

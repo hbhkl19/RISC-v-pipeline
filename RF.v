@@ -29,8 +29,19 @@ module RF(     input         clk,
     end
   end
   
-  assign RD1 = (A1 != 0) ? rf[A1] : 0;
-  assign RD2 = (A2 != 0) ? rf[A2] : 0;
+  wire [31:0] rf_read_data1 = (A1 != 0) ? rf[A1] : 32'b0;
+  wire [31:0] rf_read_data2 = (A2 != 0) ? rf[A2] : 32'b0;
+
+
+  wire bypass_for_rd1 = RFWr && (A3 != 0) && (A3 == A1);
+    // 检查写操作是否与读操作2冲突
+  wire bypass_for_rd2 = RFWr && (A3 != 0) && (A3 == A2);
+
+  assign RD1 = bypass_for_rd1 ? WD : rf_read_data1;
+  assign RD2 = bypass_for_rd2 ? WD : rf_read_data2;
+
+  // assign RD1 = (A1 != 0) ? rf[A1] : 0;
+  // assign RD2 = (A2 != 0) ? rf[A2] : 0;
   //assign reg_data = (reg_sel != 0) ? rf[reg_sel] : 0; 
 
 endmodule 
