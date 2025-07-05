@@ -16,7 +16,7 @@ main:	addi x5, x0, 1		#0x0: 00100293
 		addi x0, x0, 0		#0x28: 00000013
 		beq  x5, x6, br1 	#0x2c    #ID rs1 from MEM, 0x2c: 00628663
 		addi x10, x0, 10	#0x30    #should not run, 0x30: 00a00513
-br1ret:	jal	 x0, br2		#0x34: 0100006f
+br1ret:	jal	 x0, br2		#0x34: 0140006f
 
 br1: 	addi x11, x0, 0x34	#0x38: 03400593
         addi x0, x0, 0		#0x3c: 00000013

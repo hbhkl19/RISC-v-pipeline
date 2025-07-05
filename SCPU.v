@@ -130,9 +130,9 @@ end
         .BranchTaken(BranchTaken)
     );
      // Flush
-    assign Flush = (Op == 7'b1100111) ||   // JALR
+    assign Flush = (!stall) && ((Op == 7'b1100111) ||   // JALR
                    (Op == 7'b1101111) ||   // JAL
-                   (Op == 7'b1100011 && BranchTaken);  // Branch taken
+                   (Op == 7'b1100011 && BranchTaken));  // Branch taken
 
     
     wire is_Branch;
