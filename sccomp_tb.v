@@ -13,9 +13,9 @@ module sccomp_tb();
    integer counter = 0;
    
    initial begin
-      $readmemh("forward_sim3.dat", U_SCCOMP.U_IM.ROM, 0, 18); // load instructions into instruction memory
-      foutput = $fopen("results3.txt");
-      $dumpfile("sim3.vcd");
+      $readmemh("fib.dat", U_SCCOMP.U_IM.ROM, 0, 18); // load instructions into instruction memory
+      foutput = $fopen("results.txt");
+      $dumpfile("fib.vcd");
       $dumpvars(0, sccomp_tb);
       clk = 1;
       rstn = 1;
@@ -70,7 +70,7 @@ always begin
     if (clk == 1'b1) begin
         // 我们现在使用 counter 作为主要的停止和报告条件
         // 运行100个周期，足以让这个短程序完全执行并排空流水线
-        if ((counter == 100) || (U_SCCOMP.U_SCPU.PC_out === 32'hxxxxxxxx)) begin
+        if ((counter == 20000) || (U_SCCOMP.U_SCPU.PC_out === 32'hxxxxxxxx)) begin
             // 当我们确定程序已经结束后，再把所有寄存器的最终状态写入文件
             $fdisplay(foutput, "Simulation stopped at counter = %d", counter);
             $fdisplay(foutput, "Final PC:\t %h", U_SCCOMP.PC);

@@ -102,6 +102,7 @@ module SCPU(
     //
 
 
+
     reg [31:0] branch_operand_A;
 reg [31:0] branch_operand_B;
 
@@ -168,6 +169,8 @@ end
 		.clk(clk), .rst(reset),
 		.RFWr(MEM_WB_RegWrite), 
 		.A1(rs1), .A2(rs2), .A3(MEM_WB_rd), 
+        .reg_sel(reg_sel),
+        .reg_data(reg_data),
 		.WD(WD), 
 		.RD1(RD1), .RD2(RD2)
 		//.reg_sel(reg_sel),

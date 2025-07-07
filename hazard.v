@@ -1,5 +1,6 @@
 // PreciseDataHazardUnit_AlwaysBlock.v
 // (Procedural Style using always @(*))
+`include "ctrl_encode_def.v"
 
 module Hazard_Detect (
     // ---- Inputs from IF/ID Pipeline Register ----
